@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>楼层冰箱格位与清理</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark"></span>
+    <div>
+      <h1>公共冰箱格位与清理</h1>
+      <p class="muted">Office Fridge Slots &amp; Expiry Cleanup</p>
+    </div>
+  </div>
+  <div class="userbox">
+    <label class="muted" for="userSelect">当前身份</label>
+    <select id="userSelect"></select>
+    <span id="roleBadge" class="badge"></span>
+  </div>
+</header>
+
+<nav class="tabs" id="tabs"></nav>
+
+<main>
+  <!-- 快速存放：三步 -->
+  <section id="tab-store" class="tab">
+    <div class="stepper" id="stepper">
+      <div class="step" data-step="1"><i>1</i><span>贴签登记</span></div>
+      <div class="step-line"></div>
+      <div class="step" data-step="2"><i>2</i><span>选择格位</span></div>
+      <div class="step-line"></div>
+      <div class="step" data-step="3"><i>3</i><span>关门确认</span></div>
+    </div>
+
+    <div class="panel" id="storeStep1">
+      <h2>第 1 步 · 登记物品并打印标签</h2>
+      <div class="form-row">
+        <label>物品名称
+          <input id="itemName" maxlength="20" placeholder="如：低脂牛奶 / 自制便当">
+        </label>
+        <label>保留期限
+          <select id="keepDays">
+            <option value="1">1 天</option>
+            <option value="2">2 天</option>
+            <option value="3" selected>3 天</option>
+            <option value="5">5 天</option>
+            <option value="7">7 天</option>
+            <option value="14">14 天</option>
+          </select>
+        </label>
+        <button class="btn primary" id="btnMakeLabel">打印标签</button>
+      </div>
+      <div id="labelPreview" class="label-preview hidden">
+        <img id="labelImg" alt="标签">
+        <div>
+          <p>标签码 <code id="labelCode"></code></p>
+          <p class="muted">已贴到物品上？点击「下一步」选择空余格位。</p>
+          <div class="row-actions">
+            <button class="btn primary" id="btnToStep2">下一步：选格位</button>
+            <button class="btn ghost" id="btnVoidLabel">撤销并作废标签</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel hidden" id="storeStep2">
+      <h2>第 2 步 · 选择空余格位</h2>
+      <p class="muted">为标签 <code id="pickedLabelCode"></code> 选一个空格（白色为空闲）。</p>
+      <div class="fridge-picker" id="storeFridgePicker"></div>
+      <div id="storeSlotMap"></div>
+      <div class="row-actions">
+        <button class="btn ghost" id="btnBackTo1">上一步</button>
+      </div>
+    </div>
+
+    <div class="panel hidden" id="storeStep3">
+      <h2>第 3 步 · 关门确认</h2>
+      <p>物品已暂存到 <b id="pendingSlotText"></b>。请关严冰箱门后点击确认，门磁闭合才完成存放。</p>
+      <div class="door-box">
+        <span id="doorState" class="door-state"></span>
+        <button class="btn ghost small" id="btnToggleDoor">模拟门磁开/关</button>
+      </div>
+      <div class="row-actions">
+        <button class="btn primary" id="btnConfirmStore">我已关门，确认存放</button>
+        <button class="btn ghost" id="btnCancelPending">撤销本次存放</button>
+      </div>
+      <div id="storeDone" class="done-box hidden">
+        <p class="ok">✓ 存放完成</p>
+        <p class="muted" id="doneDetail"></p>
+        <button class="btn ghost small" id="btnUndoStore">撤销存放（取回物品）</button>
+        <button class="btn small" id="btnNewStore">再存一件</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>本部门物品</h2>
+      <div id="myItems" class="item-list"></div>
+    </div>
+  </section>
+
+  <!-- 格位图 -->
+  <section id="tab-map" class="tab hidden">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>冰箱格位图</h2>
+        <div class="fridge-picker" id="mapFridgePicker"></div>
+      </div>
+      <div class="legend">
+        <span><i class="lg free"></i>空闲</span>
+        <span><i class="lg used"></i>已占用</span>
+        <span><i class="lg mine"></i>本部门</span>
+        <span><i class="lg expired"></i>已到期</span>
+        <span><i class="lg blocked"></i>封锁</span>
+      </div>
+      <div id="slotMap"></div>
+      <div id="slotDetail" class="slot-detail hidden"></div>
+    </div>
+  </section>
+
+  <!-- 到期清理（收件箱式） -->
+  <section id="tab-clean" class="tab hidden">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>待清理收件箱</h2>
+        <div class="row-actions" id="batchBar"></div>
+      </div>
+      <p class="muted">到期物品在此排队，逐条拍照后放入临时保留区，申诉期结束方可处置。</p>
+      <div id="cleanupQueue" class="inbox"></div>
+    </div>
+    <div class="panel">
+      <h2>临时保留区 <span class="muted" id="retentionHint"></span></h2>
+      <div id="retentionList" class="inbox"></div>
+    </div>
+    <div class="panel">
+      <h2>清理批次</h2>
+      <div id="batchList" class="inbox"></div>
+    </div>
+  </section>
+
+  <!-- 申诉复核 -->
+  <section id="tab-appeal" class="tab hidden">
+    <div class="panel">
+      <h2>申诉复核</h2>
+      <p class="muted" id="appealHint"></p>
+      <div id="appealList" class="inbox"></div>
+    </div>
+  </section>
+
+  <!-- 物业运维 -->
+  <section id="tab-ops" class="tab hidden">
+    <div class="panel">
+      <h2>冰箱与停机迁移</h2>
+      <div id="fridgeCards" class="fridge-cards"></div>
+      <div id="shutdownList"></div>
+      <div id="migrationList"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <h2>温度记录</h2>
+        <div class="fridge-picker" id="tempFridgePicker"></div>
+      </div>
+      <div id="tempChart"></div>
+      <div id="tempTable"></div>
+    </div>
+    <div class="panel">
+      <h2>异常登记与处理</h2>
+      <div class="form-row">
+        <label>类型
+          <select id="excType">
+            <option value="unlabeled">无标签物品</option>
+            <option value="wrong_slot">占错格位</option>
+            <option value="leak">液体泄漏</option>
+          </select>
+        </label>
+        <label>冰箱 <select id="excFridge"></select></label>
+        <label>说明 <input id="excNote" maxlength="60" placeholder="位置、外观等"></label>
+        <button class="btn" id="btnReportExc">登记异常</button>
+      </div>
+      <div id="exceptionList" class="inbox"></div>
+    </div>
+    <div class="panel">
+      <h2>卫生检查</h2>
+      <div class="form-row">
+        <label>冰箱 <select id="inspFridge"></select></label>
+        <label>结果
+          <select id="inspResult"><option value="pass">合格</option><option value="fail">不合格</option></select>
+        </label>
+        <label>备注 <input id="inspNotes" maxlength="60"></label>
+        <button class="btn" id="btnInspect">登记检查</button>
+      </div>
+      <div id="inspectionList" class="inbox"></div>
+    </div>
+  </section>
+</main>
+
+<div id="toast" class="toast hidden"></div>
+<script src="/app.js"></script>
+</body>
+</html>
