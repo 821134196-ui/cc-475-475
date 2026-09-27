@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>写字楼公共冰箱格位与过期清理系统</title>
+<style>
+:root{
+  --bg:#F7F9F8; --card:#FFFFFF; --mint:#3FBF9B; --mint-soft:#E3F5EF;
+  --mint-deep:#2E9C7D; --dark:#2E3A38; --gray:#6B7A77; --line:#DDE6E3;
+  --warn:#E0A13C; --warn-soft:#FBF1DE; --bad:#D96A55; --bad-soft:#FAECE8;
+  --blue:#5B8DEF; --shadow:0 1px 3px rgba(46,58,56,.07),0 4px 16px rgba(46,58,56,.05);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  background:var(--bg);color:var(--dark);font-size:14px;line-height:1.5}
+header{background:var(--card);border-bottom:1px solid var(--line);
+  padding:0 24px;display:flex;align-items:center;gap:16px;height:60px;
+  position:sticky;top:0;z-index:20}
+.logo{width:30px;height:30px;border-radius:8px;background:var(--mint);
+  display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700}
+h1{font-size:16px;font-weight:700}
+.sub{color:var(--gray);font-size:12px}
+.actor{margin-left:auto;display:flex;align-items:center;gap:8px}
+.actor select{padding:7px 10px;border:1px solid var(--line);border-radius:8px;
+  background:#fff;color:var(--dark);font-size:13px}
+.role-tag{font-size:11px;padding:2px 8px;border-radius:20px;background:var(--mint-soft);
+  color:var(--mint-deep);font-weight:600}
+nav{background:var(--card);border-bottom:1px solid var(--line);
+  padding:0 24px;display:flex;gap:4px;overflow-x:auto;position:sticky;top:60px;z-index:19}
+nav button{background:none;border:none;padding:13px 14px;font-size:13.5px;color:var(--gray);
+  cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
+nav button.active{color:var(--mint-deep);border-bottom-color:var(--mint);font-weight:600}
+nav button:hover{color:var(--dark)}
+main{max-width:1120px;margin:22px auto;padding:0 24px 60px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  box-shadow:var(--shadow);padding:18px 20px;margin-bottom:16px}
+.card h2{font-size:15px;margin-bottom:4px}
+.card .hint{color:var(--gray);font-size:12.5px;margin-bottom:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:820px){.grid2{grid-template-columns:1fr}}
+button.btn{border:none;border-radius:8px;padding:9px 16px;font-size:13.5px;cursor:pointer;
+  background:var(--mint);color:#fff;font-weight:600;transition:.15s}
+button.btn:hover{background:var(--mint-deep)}
+button.btn.ghost{background:#fff;color:var(--dark);border:1px solid var(--line)}
+button.btn.ghost:hover{border-color:var(--mint);color:var(--mint-deep)}
+button.btn.danger{background:#fff;color:var(--bad);border:1px solid var(--bad)}
+button.btn.warn{background:var(--warn)}
+button.btn:disabled{opacity:.45;cursor:not-allowed}
+select,input,textarea{padding:8px 10px;border:1px solid var(--line);border-radius:8px;
+  font-size:13.5px;font-family:inherit;color:var(--dark);background:#fff}
+label.fld{display:block;font-size:12.5px;color:var(--gray);margin:10px 0 4px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11.5px;font-weight:600}
+.badge.mint{background:var(--mint-soft);color:var(--mint-deep)}
+.badge.gray{background:#EEF2F1;color:var(--gray)}
+.badge.warn{background:var(--warn-soft);color:#9A6E1F}
+.badge.bad{background:var(--bad-soft);color:var(--bad)}
+.badge.blue{background:#E8F0FE;color:#3A66B8}
+/* 格位图 */
+.fridge{border:1px solid var(--line);border-radius:12px;background:#fff;
+  padding:16px 18px;position:relative;overflow:hidden}
+.fridge.outage{background:#F2F4F3}
+.fridge-title{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.fridge-title h3{font-size:14px}
+.shelf{display:flex;gap:7px;margin:0 auto 9px;align-items:stretch}
+.shelf-label{width:34px;flex:0 0 34px;color:var(--gray);font-size:11px;
+  display:flex;align-items:center;justify-content:flex-end;padding-right:6px}
+.cell{flex:1;min-width:0;aspect-ratio:1.55/1;border:1.5px dashed var(--line);border-radius:8px;
+  background:#FBFCFC;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:2px;cursor:default;padding:2px;position:relative;transition:.12s}
+.cell .code{font-size:9.5px;color:#A9B5B2}
+.cell.occupied{border-style:solid;border-color:var(--mint);background:var(--mint-soft);cursor:pointer}
+.cell.due{border-color:var(--bad);background:var(--bad-soft)}
+.cell .dept{font-weight:700;font-size:13px;line-height:1.1}
+.cell .dt{font-size:9.5px;color:var(--gray)}
+.cell.due .dt{color:var(--bad)}
+.cell.held{border-color:var(--warn);background:var(--warn-soft);
+  animation:pulse 1.2s infinite}
+.cell.free-pick{cursor:pointer}
+.cell.free-pick:hover{border-color:var(--mint);background:var(--mint-soft)}
+.cell.picked{border-color:var(--mint-deep);background:var(--mint);border-style:solid}
+.cell.picked .code{color:#fff}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
+.overlay-outage{position:absolute;inset:0;background:rgba(247,249,248,.82);
+  display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;z-index:2}
+/* 收件箱列表 */
+.inbox{list-style:none;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.inbox li{display:flex;gap:12px;padding:13px 16px;border-bottom:1px solid var(--line);
+  background:#fff;align-items:flex-start;cursor:pointer}
+.inbox li:last-child{border-bottom:none}
+.inbox li:hover{background:#FAFCFB}
+.ava{width:34px;height:34px;border-radius:9px;background:var(--mint-soft);color:var(--mint-deep);
+  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex:0 0 auto}
+.ava.warn{background:var(--warn-soft);color:#9A6E1F}
+.ava.bad{background:var(--bad-soft);color:var(--bad)}
+.mail-main{flex:1;min-width:0}
+.mail-top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.mail-subj{font-weight:600;font-size:13.5px}
+.mail-snip{color:var(--gray);font-size:12.5px;margin-top:2px}
+.mail-time{color:var(--gray);font-size:11.5px;white-space:nowrap;margin-left:auto}
+.photo-wrap{margin-top:10px;border:1px solid var(--line);border-radius:10px;overflow:hidden;
+  display:inline-block;background:#fff;max-width:340px}
+.photo-wrap img{display:block;width:100%}
+.chevron{color:var(--gray);transition:.2s;align-self:center}
+li.open .chevron{transform:rotate(90deg)}
+/* 步骤 */
+.steps{display:flex;gap:0;margin:6px 0 18px}
+.step{flex:1;text-align:center;position:relative;font-size:12.5px;color:var(--gray)}
+.step .n{width:26px;height:26px;border-radius:50%;background:#EEF2F1;color:var(--gray);
+  display:inline-flex;align-items:center;justify-content:center;font-weight:700;margin-bottom:5px}
+.step.active .n{background:var(--mint);color:#fff}
+.step.done .n{background:var(--mint-soft);color:var(--mint-deep)}
+.step:not(:last-child)::after{content:"";position:absolute;top:13px;left:56%;right:-44%;
+  height:2px;background:var(--line)}
+.step.done:not(:last-child)::after{background:var(--mint)}
+.step b{display:block}
+.door{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:10px;
+  background:var(--warn-soft);color:#9A6E1F;font-weight:600;font-size:13px}
+.door .dot{width:9px;height:9px;border-radius:50%;background:var(--warn);animation:pulse 1.2s infinite}
+.door.closed{background:#EEF2F1;color:var(--gray)}
+.door.closed .dot{background:var(--gray);animation:none}
+.toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);z-index:60;
+  background:var(--dark);color:#fff;padding:11px 20px;border-radius:10px;font-size:13.5px;
+  box-shadow:0 8px 28px rgba(0,0,0,.22);opacity:0;transition:.25s;max-width:80vw}
+.toast.show{opacity:1}
+.toast.err{background:var(--bad)}
+.toast.ok{background:var(--mint-deep)}
+.undo-card{border:2px solid var(--mint);background:var(--mint-soft);border-radius:12px;padding:18px;text-align:center}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;color:var(--gray);font-weight:600;font-size:12px;padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:9px 10px;border-bottom:1px solid #EDF2F0;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+.pill-count{background:var(--bad);color:#fff;border-radius:20px;font-size:11px;padding:1px 7px;margin-left:5px}
+.filter-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.filter-tabs button{padding:6px 13px;border-radius:20px;border:1px solid var(--line);
+  background:#fff;font-size:12.5px;color:var(--gray);cursor:pointer}
+.filter-tabs button.on{background:var(--dark);color:#fff;border-color:var(--dark)}
+.empty{text-align:center;color:var(--gray);padding:34px 0;font-size:13px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;color:var(--gray);font-size:12px;margin-top:10px}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.kv{display:flex;gap:6px;font-size:12.5px;color:var(--gray);flex-wrap:wrap}
+.kv b{color:var(--dark);font-weight:600}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">冰</div>
+  <div>
+    <h1>公共冰箱格位与过期清理</h1>
+    <div class="sub">写字楼物业 · 格位登记 / 到期清理 / 停机迁移 / 申诉复核</div>
+  </div>
+  <div class="actor">
+    <span class="sub">当前操作人</span>
+    <select id="actorSel"></select>
+    <span class="role-tag" id="roleTag"></span>
+  </div>
+</header>
+<nav id="nav"></nav>
+<main id="main"></main>
+<div class="toast" id="toast"></div>
+
+<script>
+const $=s=>document.querySelector(s);
+const state={users:[],actor:null,view:'map',issueFilter:'unlabeled',storeStep:1,
+  store:{uid:null,label:null,cell:null,token:null,itemId:null},tempFridge:'F1'};
+
+async function api(path,body){
+  const opt=body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{};
+  const r=await fetch(path,opt); const d=await r.json();
+  if(!r.ok) throw new Error(d.message||d.error||'操作失败');
+  return d;
+}
+function toast(msg,kind=''){const t=$('#toast');t.textContent=msg;t.className='toast show '+kind;
+  clearTimeout(t._h);t._h=setTimeout(()=>t.className='toast',2600);}
+function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function roleName(r){return {employee:'租户员工',tenant_admin:'租户管理员',cleaner:'保洁',property:'物业'}[r]||r;}
+function deptShort(id){const u=state.users.find(x=>x.id===id);return u?u.dept_short:'';}
+function hh(s){return s?s.substring(5,16):'';}
+
+const VIEWS=[
+ ['map','冰箱格位图'],['store','快速存放'],['expiry','到期队列'],['clean','清理批次'],
+ ['outage','停机迁移'],['temp','温度记录'],['appeal','申诉复核'],['hygiene','卫生巡检']];
+
+async function boot(){
+  state.users=await api('/api/users');
+  const saved=localStorage.getItem('actor');
+  state.actor=state.users.find(u=>u.id===saved)||state.users[0];
+  $('#actorSel').innerHTML=state.users.map(u=>
+    `<option value="${u.id}" ${u.id===state.actor.id?'selected':''}>${esc(u.name)}（${esc(u.dept_short||'')}·${roleName(u.role)}）</option>`).join('');
+  $('#actorSel').onchange=e=>{state.actor=state.users.find(u=>u.id===e.target.value);
+    localStorage.setItem('actor',state.actor.id);render();};
+  $('#nav').innerHTML=VIEWS.map(([k,n],i)=>
+    `<button data-v="${k}" class="${k===state.view?'active':''}">${n}${k==='expiry'?'<span class="pill-count" id="expCnt"></span>':''}</button>`).join('');
+  $('#nav').querySelectorAll('button').forEach(b=>b.onclick=()=>{state.view=b.dataset.v;render();});
+  render();
+}
+function render(){
+  $('#roleTag').textContent=roleName(state.actor.role);
+  $('#nav').querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.v===state.view));
+  ({map:viewMap,store:viewStore,expiry:viewExpiry,clean:viewBatches,outage:viewOutage,
+    temp:viewTemp,appeal:viewAppeal,hygiene:viewHygiene})[state.view]();
+}
+
+/* ---------------- 冰箱格位图 ---------------- */
+async function viewMap(){
+  const data=await api('/api/map');
+  const m=$('#main');
+  m.innerHTML=data.map(g=>{
+    const w=Math.round(g.fridge.width_ratio*100);
+    const shelves=[];
+    for(let s=1;s<=g.fridge.shelf_count;s++){
+      const cells=g.cells.filter(c=>c.shelf===s).map(c=>{
+        if(c.occupied)
+          return `<div class="cell occupied ${c.state==='due'?'due':''}" title="${esc(c.label)} 存放 ${esc(c.stored_at)} 到期 ${esc(c.expire_at)}">
+            <span class="dept">${esc(c.dept_short)}</span><span class="dt">${esc(c.stored_at)}</span></div>`;
+        if(c.held) return `<div class="cell held"><span class="code">${c.code}</span><span class="dt">待关门</span></div>`;
+        return `<div class="cell"><span class="code">${c.code}</span></div>`;
+      }).join('');
+      shelves.push(`<div class="shelf" style="width:${w}%"><div class="shelf-label">L${s}</div>${cells}</div>`);
+    }
+    return `<div class="card"><div class="fridge ${g.fridge.status==='outage'?'outage':''}">
+      <div class="fridge-title"><h3>${esc(g.fridge.name)}</h3>
+        ${g.fridge.status==='outage'?'<span class="badge gray">临时停机</span>':'<span class="badge mint">运行中</span>'}
+        <span class="kv" style="margin-left:auto"><b>${g.cells.filter(c=>c.occupied).length}</b>/${g.cells.length} 格占用</span>
+      </div>${shelves.join('')}
+      ${g.fridge.status==='outage'?`<div class="overlay-outage"><b style="font-size:16px">冰箱停机中</b>
+        <span class="sub">预计恢复 ${hh(g.fridge.resume_at)} · 未到期物品由物业批量迁移</span></div>`:''}
+      <div class="legend"><span><i style="background:var(--mint-soft);border:1px solid var(--mint)"></i>在存</span>
+        <span><i style="background:var(--bad-soft);border:1px solid var(--bad)"></i>已到期待清理</span>
+        <span><i style="background:var(--warn-soft);border:1px dashed var(--warn)"></i>开门待确认</span>
+        <span class="sub">标签仅显示部门简称与存放日期，层架按冰箱宽度比例绘制</span></div>
+    </div></div>`;
+  }).join('');
+  api('/api/expiry').then(q=>{const c=$('#expCnt');if(c)c.textContent=q.length;});
+}
+
+/* ---------------- 快速存放（三步） ---------------- */
+async function viewStore(){
+  const labels=await api('/api/labels');
+  const s=state.store;
+  const m=$('#main');
+  const unused=labels.filter(l=>!l.used&&!l.revoked);
+  m.innerHTML=`
+  <div class="card">
+    <h2>快速存放</h2><div class="hint">贴签 → 选空余格位 → 关门确认，三步完成；格位仅第一件存放成功。</div>
+    <div class="steps">
+      <div class="step ${state.storeStep===1?'active':state.storeStep>1?'done':''}"><span class="n">1</span><b>物品贴签</b></div>
+      <div class="step ${state.storeStep===2?'active':state.storeStep>2?'done':''}"><span class="n">2</span><b>选空余格位</b></div>
+      <div class="step ${state.storeStep===3?'active':''}"><span class="n">3</span><b>关门确认</b></div>
+    </div>
+    <div id="stepBody"></div>
+  </div>`;
+  const body=$('#stepBody');
+  if(state.storeStep===1){
+    body.innerHTML=`
+      <div class="grid2">
+        <div>
+          <label class="fld">贴签员工（标签绑定部门）</label>
+          <select id="labUser">${state.users.filter(u=>u.role==='employee'||u.role==='tenant_admin')
+            .map(u=>`<option value="${u.id}" ${u.id===state.actor.id?'selected':''}>${esc(u.name)}（${esc(u.dept_short)}）</option>`).join('')}</select>
+          <div class="row" style="margin-top:14px"><button class="btn" id="mkLab">生成新标签</button>
+          <button class="btn ghost" id="useOld">使用已有空签</button></div>
+          <p class="hint" style="margin-top:10px">一物品一签；已使用标签再次扫码会提示“重复扫码”，已作废标签提示“标签失效”。</p>
+        </div>
+        <div id="labPreview" class="hint" style="display:flex;align-items:center;justify-content:center;
+          border:1px dashed var(--line);border-radius:10px;min-height:150px">标签预览区</div>
+      </div>`;
+    $('#mkLab').onclick=async()=>{
+      try{const d=await api('/api/label',{uid:$('#labUser').value});
+        state.store.label=d.code;state.store.uid=d.uid;state.storeStep=2;render();
+        toast('标签已生成：'+d.code,'ok');
+      }catch(e){toast(e.message,'err');}
+    };
+    $('#useOld').onclick=()=>{
+      if(!unused.length)return toast('暂无未使用标签，请生成新签','err');
+      state.store.label=unused[0].code;state.store.uid=unused[0].user_id;
+      state.storeStep=2;render();
+    };
+  }
+  if(state.storeStep===2){
+    body.innerHTML=`<div class="row" style="margin-bottom:10px">
+        <span>当前标签 <b id="labCode">${esc(s.label)}</b></span>
+        <button class="btn ghost" id="back1">返回上一步</button></div>
+      <div id="pickMap"></div>`;
+    $('#back1').onclick=()=>{state.storeStep=1;render();};
+    const data=await api('/api/map');
+    $('#pickMap').innerHTML=data.filter(g=>g.fridge.status!=='outage').map(g=>{
+      const w=Math.round(g.fridge.width_ratio*100);
+      const shelves=[];
+      for(let sh=1;sh<=g.fridge.shelf_count;sh++){
+        const cells=g.cells.filter(c=>c.shelf===sh).map(c=>{
+          if(c.occupied)return `<div class="cell occupied ${c.state==='due'?'due':''}"><span class="dept">${esc(c.dept_short)}</span><span class="dt">${esc(c.stored_at)}</span></div>`;
+          if(c.held)return `<div class="cell held"><span class="code">${c.code}</span></div>`;
+          return `<div class="cell free-pick" data-cell="${c.code}"><span class="code">${c.code}</span><span class="dt">空余</span></div>`;
+        }).join('');
+        shelves.push(`<div class="shelf" style="width:${w}%"><div class="shelf-label">L${sh}</div>${cells}</div>`);
+      }
+      return `<div class="fridge" style="margin-bottom:14px"><div class="fridge-title"><h3>${esc(g.fridge.name)}</h3></div>${shelves.join('')}</div>`;
+    }).join('');
+    $('#pickMap').querySelectorAll('.free-pick').forEach(el=>el.onclick=async()=>{
+      const cell=el.dataset.cell;
+      try{
+        const d=await api('/api/store/start',{uid:s.uid,label:s.label,cell});
+        state.store.cell=cell;state.store.token=d.token;state.store.itemId=d.item_id;
+        state.storeStep=3;render();
+      }catch(e){toast(e.message,'err');}
+    });
+  }
+  if(state.storeStep===3){
+    body.innerHTML=`
+      <div class="grid2">
+        <div>
+          <div class="door"><span class="dot"></span>门磁：OPEN 门已打开</div>
+          <p class="hint" style="margin-top:12px">物品 <b>${esc(s.label)}</b> 已暂存登记，目标格位 <b>${esc(s.cell)}</b>。<br>
+          请放入物品并关门，点击下方按钮完成存放（30 秒内有效）。</p>
+          <div class="row" style="margin-top:8px">
+            <button class="btn" id="confirmBtn">✔ 关门确认，完成存放</button>
+            <button class="btn ghost" id="cancelBtn">取消</button>
+          </div>
+        </div>
+        <div style="border:1px dashed var(--line);border-radius:10px;padding:16px" id="result">
+          <p class="hint">关门后格位才会真正占用；若格位同时被他人抢先，将提示仅首个成功。</p></div>
+      </div>`;
+    $('#cancelBtn').onclick=()=>{state.storeStep=1;Object.assign(state.store,{label:null,cell:null,token:null});render();};
+    $('#confirmBtn').onclick=async()=>{
+      try{
+        const d=await api('/api/store/confirm',{uid:s.uid,token:s.token});
+        $('#result').innerHTML=`<div class="undo-card">
+          <div style="font-size:15px;font-weight:700">✔ 存放完成</div>
+          <p class="hint" style="margin:8px 0 12px">格位 <b>${esc(d.cell)}</b><br>
+          存放 ${hh(d.stored_at)} ｜ 保留至 ${hh(d.expire_at)}（48 小时）</p>
+          <button class="btn danger" id="undoBtn">↩ 撤销此存放（释放格位）</button></div>`;
+        state.storeStep=0;
+        $('#undoBtn').onclick=async()=>{
+          try{await api('/api/store/undo',{uid:s.uid,item_id:d.item_id});
+            toast(`已撤销：格位 ${d.cell} 已释放，标签已作废`,'ok');
+            Object.assign(state.store,{label:null,cell:null,token:null,itemId:null});
+            state.storeStep=1;render();
+          }catch(e){toast(e.message,'err');}
+        };
+      }catch(e){
+        $('#result').innerHTML=`<div class="card" style="box-shadow:none;border-color:var(--bad);margin:0">
+          <b style="color:var(--bad)">存放未完成</b><p class="hint" style="margin-top:6px">${esc(e.message)}</p>
+          <button class="btn ghost" id="retry" style="margin-top:8px">重新贴签存放</button></div>`;
+        $('#retry').onclick=()=>{Object.assign(state.store,{label:null,cell:null,token:null});
+          state.storeStep=1;render();};
+        toast(e.message,'err');
+      }
+    };
+  }
+}
+
+/* ---------------- 到期队列（收件箱） ---------------- */
+async function viewExpiry(){
+  const q=await api('/api/expiry');
+  $('#main').innerHTML=`<div class="card">
+    <h2>到期队列 <span class="badge bad">${q.length} 件待清理</span></h2>
+    <div class="hint">超过保留期限的物品自动入队。保洁勾选后拍照清理，物品转入临时保留区并进入 24 小时申诉期。</div>
+    <div class="row" style="margin-bottom:12px">
+      <button class="btn" id="cleanBtn">📷 拍照清理所选（保洁）</button>
+      <span class="sub" id="selInfo">未选择</span></div>
+    ${q.length?`<ul class="inbox" id="expList">${q.map(it=>`
+      <li data-id="${it.item_id}">
+        <input type="checkbox" style="margin-top:10px" class="expCk">
+        <div class="ava bad">${esc(it.dept)}</div>
+        <div class="mail-main">
+          <div class="mail-top"><span class="mail-subj">${esc(it.label)}</span>
+            <span class="badge gray">${esc(it.cell)}</span>
+            <span class="badge ${it.overdue_h>6?'bad':'warn'}">超期 ${it.overdue_h}h</span></div>
+          <div class="mail-snip">${esc(it.dept)} 部门物品 · 存放 ${hh(it.stored_at)} · 应于 ${hh(it.expire_at)} 前取走</div>
+        </div>
+      </li>`).join('')}</ul>`
+    :'<div class="empty">收件箱已清空，暂无到期物品</div>'}
+  </div>`;
+  if(!q.length)return;
+  const cks=[...document.querySelectorAll('.expCk')];
+  cks.forEach(c=>c.onchange=()=>{const n=cks.filter(x=>x.checked).length;
+    $('#selInfo').textContent=n?`已选择 ${n} 件`:'未选择';});
+  $('#cleanBtn').onclick=async()=>{
+    const ids=cks.filter(x=>x.checked).map(x=>x.closest('li').dataset.id);
+    if(!ids.length)return toast('请先勾选要清理的物品','err');
+    try{const d=await api('/api/clean',{uid:state.actor.id,item_ids:ids,note:'收件箱批量到期清理'});
+      toast(`已拍照清理 ${d.items.length} 件，进入临时保留区，申诉截止 ${hh(d.appeal_deadline)}`,'ok');
+      render();
+    }catch(e){toast(e.message,'err');}
+  };
+}
+
+/* ---------------- 清理批次 ---------------- */
+async function viewBatches(){
+  const bs=await api('/api/batches');
+  $('#main').innerHTML=`<div class="card"><h2>清理批次</h2>
+    <div class="hint">每次保洁清理生成一个批次，留存拍照凭证，可追溯至申诉复核。</div>
+    ${bs.length?`<table><thead><tr><th>批次号</th><th>时间</th><th>执行人</th><th>件数</th><th>备注</th><th></th></tr></thead>
+    <tbody>${bs.map(b=>`<tr><td><b>${esc(b.id)}</b></td><td>${hh(b.created_at)}</td>
+      <td>${esc(state.users.find(u=>u.id===b.actor)?.name||b.actor)}</td><td>${b.count}</td>
+      <td class="sub">${esc(b.note||'')}</td>
+      <td><button class="btn ghost" data-b="${esc(b.id)}">展开照片</button></td></tr>
+      <tr hidden data-body="${esc(b.id)}"><td colspan="6" id="bd-${esc(b.id)}"></td></tr>`).join('')}</tbody></table>`
+    :'<div class="empty">暂无清理批次</div>'}</div>`;
+  document.querySelectorAll('button[data-b]').forEach(btn=>btn.onclick=async()=>{
+    const id=btn.dataset.b; const tr=document.querySelector(`tr[data-body="${id}"]`);
+    tr.hidden=!tr.hidden;
+    btn.textContent=tr.hidden?'展开照片':'收起照片';
+    if(tr.hidden)return;
+    const aps=await api('/api/appeals');
+    const items=aps.filter(a=>a.batch_id===id);
+    $('#bd-'+id).innerHTML=items.length
+      ? `<div class="row" style="gap:14px;align-items:flex-start">${items.map(a=>
+          `<div style="text-align:center"><div class="photo-wrap"><img src="${esc(a.photo)}" alt="清理照片"></div>
+           <div class="sub" style="margin-top:4px">${esc(a.label)} · ${esc(a.dept)}</div></div>`).join('')}</div>
+           <p class="sub" style="margin-top:8px">已处置闭环的物品不再展示；申诉与认领在「申诉复核」处理。</p>`
+      : '<span class="sub">该批次物品均已处置闭环。</span>';
+  });
+}
+
+/* ---------------- 停机迁移 ---------------- */
+async function viewOutage(){
+  const map=await api('/api/map');
+  const m=$('#main');
+  m.innerHTML=`<div class="card"><h2>停机迁移</h2>
+    <div class="hint">仅物业可登记停机并执行迁移；未到期物品批量迁至运行中冰箱的空余格位，<b>保留原标签</b>；已到期物品转清理队列；实物缺失登记“迁移缺件”。</div>
+    <div class="row"><label class="fld" style="margin:0">选择冰箱</label>
+      <select id="ofSel">${map.map(g=>`<option value="${g.fridge.id}" ${g.fridge.id==='F3'?'selected':''}>${esc(g.fridge.name)}（${g.fridge.status==='outage'?'停机中':'运行中'}）</option>`).join('')}</select>
+      <button class="btn warn" id="beginBtn">登记临时停机</button>
+      <button class="btn ghost" id="endBtn">恢复运行</button></div></div>
+    <div class="card"><div id="planBox" class="hint">选择停机冰箱后查看迁移计划</div></div>`;
+  async function loadPlan(){
+    const fid=$('#ofSel').value;
+    const d=await api('/api/migration?fridge_id='+fid);
+    const plan=d.plan;
+    $('#planBox').innerHTML=`
+      <div class="row" style="margin-bottom:12px">
+        <span class="badge ${d.fridge.status==='outage'?'gray':'mint'}">${d.fridge.status==='outage'?'停机中 · 预计恢复 '+hh(d.fridge.resume_at):'运行中'}</span>
+        ${d.fridge.status==='outage'?`<button class="btn" id="migBtn">执行批量迁移（物业）</button>`:''}
+        <span class="sub">${plan.filter(p=>p.to).length} 件待迁移 · ${plan.filter(p=>!p.to).length} 件转清理/无目标</span>
+      </div>
+      ${plan.length?`<table><thead><tr><th>物品标签</th><th>原格位</th><th></th><th>目标格位</th><th>处理</th></tr></thead>
+      <tbody>${plan.map(p=>`<tr><td><b>${esc(p.label)}</b></td><td>${esc(p.from)}</td>
+        <td>${p.to?'→':'<span class="badge bad">→</span>'}</td>
+        <td>${p.to?esc(p.to):'<span class="sub">—</span>'}</td>
+        <td><span class="badge ${p.to?'mint':'warn'}">${esc(p.note)}</span></td></tr>`).join('')}
+      </tbody></table>`:'<div class="empty">该冰箱内无在存物品</div>'}`;
+    const mb=$('#migBtn');
+    if(mb)mb.onclick=async()=>{
+      try{const r=await api('/api/outage/migrate',{uid:state.actor.id,fridge_id:fid});
+        toast(`迁移完成：${r.moved.length} 件迁移，${r.missing.length} 件缺件/无格位，${r.skipped_expired.length} 件到期转清理`,'ok');
+        loadPlan();
+      }catch(e){toast(e.message,'err');}
+    };
+  }
+  $('#ofSel').onchange=loadPlan;
+  $('#beginBtn').onclick=async()=>{
+    try{await api('/api/outage/begin',{uid:state.actor.id,fridge_id:$('#ofSel').value});
+      toast('已登记停机','ok');loadPlan();
+    }catch(e){toast(e.message,'err');}};
+  $('#endBtn').onclick=async()=>{
+    try{await api('/api/outage/end',{uid:state.actor.id,fridge_id:$('#ofSel').value});
+      toast('冰箱已恢复运行','ok');loadPlan();
+    }catch(e){toast(e.message,'err');}};
+  loadPlan();
+}
+
+/* ---------------- 温度记录 ---------------- */
+async function viewTemp(){
+  const d=await api('/api/temps?fridge_id='+state.tempFridge);
+  state.tempFridges=d.fridges;
+  $('#main').innerHTML=`<div class="card"><h2>温度记录</h2>
+    <div class="hint">模拟温度适配器每 10 秒轮询；超出 ${d.limits[0]}~${d.limits[1]}℃ 自动生成“温度超限”异常。</div>
+    <div class="row"><select id="tfSel">${d.fridges.map(f=>
+      `<option value="${f.id}" ${f.id===state.tempFridge?'selected':''}>${esc(f.name)}</option>`).join('')}</select>
+      <button class="btn warn" id="faultBtn">模拟温度故障</button>
+      <button class="btn ghost" id="fixBtn">恢复正常</button></div>
+    <div id="chart" style="margin-top:14px"></div>
+    <div class="legend"><span><i style="background:var(--mint)"></i>柜内温度</span>
+      <span><i style="background:var(--bad)"></i>超限点</span>
+      <span><i style="background:var(--warn-soft);border:1px solid var(--warn)"></i>${d.limits[1]}℃ 上限</span></div>
+    </div>
+    <div class="card"><table><thead><tr><th>时间</th><th>温度</th><th>状态</th></tr></thead>
+    <tbody>${d.points.slice().reverse().map(p=>`<tr><td>${hh(p.ts)}</td><td><b>${p.value}</b> ℃</td>
+      <td>${p.alarm?'<span class="badge bad">超限</span>':'<span class="badge mint">正常</span>'}</td></tr>`).join('')}</tbody></table></div>`;
+  $('#tfSel').onchange=e=>{state.tempFridge=e.target.value;render();};
+  $('#faultBtn').onclick=async()=>{try{await api('/api/temp/fault',{fridge_id:state.tempFridge,fault:true});
+    toast('已模拟故障：下一轮读数将超限','ok');render();}catch(e){toast(e.message,'err');}};
+  $('#fixBtn').onclick=async()=>{try{await api('/api/temp/fault',{fridge_id:state.tempFridge,fault:false});
+    toast('传感器恢复正常','ok');render();}catch(e){toast(e.message,'err');}};
+  drawChart(d.points,d.limits);
+}
+function drawChart(pts,limits){
+  const W=1040,H=260,L=44,R=16,T=18,B=30;
+  if(!pts.length){$('#chart').innerHTML='<div class="empty">暂无读数</div>';return;}
+  const vals=pts.map(p=>p.value);
+  let ymin=Math.min(0,Math.floor(Math.min(...vals))), ymax=Math.max(12,Math.ceil(Math.max(...vals))+1);
+  const x=i=>L+(W-L-R)*(pts.length===1?0:i/(pts.length-1));
+  const y=v=>T+(H-T-B)*(1-(v-ymin)/(ymax-ymin));
+  const line=pts.map((p,i)=>(i?'L':'M')+x(i)+' '+y(p.value)).join(' ');
+  let grid='';
+  for(let v=Math.ceil(ymin);v<=ymax;v+=2)
+    grid+=`<line x1="${L}" y1="${y(v)}" x2="${W-R}" y2="${y(v)}" stroke="#EEF2F0"/>
+      <text x="${L-8}" y="${y(v)+4}" text-anchor="end" font-size="10" fill="#6B7A77">${v}°</text>`;
+  const band=`<rect x="${L}" y="${y(limits[1])}" width="${W-L-R}" height="${y(limits[0])-y(limits[1])}" fill="#E3F5EF" opacity=".55"/>
+    <line x1="${L}" y1="${y(limits[1])}" x2="${W-R}" y2="${y(limits[1])}" stroke="#E0A13C" stroke-dasharray="5 4"/>`;
+  const dots=pts.map((p,i)=>p.alarm
+    ?`<circle cx="${x(i)}" cy="${y(p.value)}" r="4.5" fill="#D96A55" stroke="#fff" stroke-width="1.5"/>`
+    :'').join('');
+  $('#chart').innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" id="csvg">
+    ${grid}${band}
+    <path d="${line}" fill="none" stroke="#3FBF9B" stroke-width="2" stroke-linejoin="round"/>
+    ${dots}
+    <line id="cx" y1="${T}" y2="${H-B}" stroke="#2E3A38" stroke-width="1" opacity="0"/>
+    <g id="tip" style="display:none"><rect id="tbox" width="118" height="42" rx="7" fill="#2E3A38"/>
+      <text id="t1" fill="#fff" font-size="11" font-weight="700"></text>
+      <text id="t2" fill="#9FD9C8" font-size="10"></text></g>
+    <rect x="${L}" y="${T}" width="${W-L-R}" height="${H-T-B}" fill="transparent" id="hover"/>
+  </svg>`;
+  const svg=$('#csvg'),hb=$('#hover');
+  hb.addEventListener('mousemove',e=>{
+    const rect=svg.getBoundingClientRect();
+    const mx=(e.clientX-rect.left)*(W/rect.width);
+    const i=Math.round((mx-L)/((W-L-R)/(pts.length-1)));
+    if(i<0||i>=pts.length)return;
+    $('#cx').setAttribute('x1',x(i));$('#cx').setAttribute('x2',x(i));$('#cx').setAttribute('opacity',.35);
+    const g=$('#tip');g.style.display='';
+    $('#tbox').setAttribute('x',Math.min(x(i)+8,W-128));$('#tbox').setAttribute('y',Math.max(y(pts[i].value)-46,T));
+    $('#t1').setAttribute('x',Math.min(x(i)+16,W-120));$('#t1').setAttribute('y',Math.max(y(pts[i].value)-28,T+14));
+    $('#t2').setAttribute('x',Math.min(x(i)+16,W-120));$('#t2').setAttribute('y',Math.max(y(pts[i].value)-14,T+28));
+    $('#t1').textContent=pts[i].value+'℃'+(pts[i].alarm?' 超限':'');
+    $('#t2').textContent=pts[i].ts.substring(5);
+  });
+  hb.addEventListener('mouseleave',()=>{$('#tip').style.display='none';$('#cx').setAttribute('opacity',0);});
+}
+
+/* ---------------- 申诉复核（收件箱 + 行内照片） ---------------- */
+async function viewAppeal(){
+  const rows=await api('/api/appeals');
+  $('#main').innerHTML=`<div class="card"><h2>申诉复核 <span class="badge warn">${rows.filter(r=>r.state==='appealed').length} 件待管理员复核</span></h2>
+  <div class="hint">清理后物品在临时保留区进入 24h 申诉期：本部门员工可认领/申诉；<b>租户管理员</b>复核争议（维持处置或返还格位），跨部门操作将被拦截；期满未申诉自动处置。</div>
+  ${rows.length?`<ul class="inbox">${rows.map(r=>`
+    <li data-id="${r.item_id}">
+      <div class="ava ${r.state==='appealed'?'warn':''}">${esc(r.dept)}</div>
+      <div class="mail-main">
+        <div class="mail-top"><span class="mail-subj">${esc(r.label)}</span>
+          ${r.state==='appealed'?'<span class="badge warn">已申诉</span>':'<span class="badge gray">临时保留中</span>'}
+          ${r.remaining_h<0?'<span class="badge bad">申诉期已满</span>':`<span class="badge ${r.remaining_h<6?'bad':'mint'}">剩余 ${r.remaining_h}h</span>`}</div>
+        <div class="mail-snip">原格位批次清理于 ${hh(r.removed_at)}${r.reason?' · 申诉理由：'+esc(r.reason):''}</div>
+        <div class="photoBox" hidden><div class="photo-wrap"><img src="${esc(r.photo)}" alt="清理照片"></div>
+          <div class="row" style="margin-top:10px">
+            <button class="btn mint act" data-act="claim">本人认领取回</button>
+            <button class="btn ghost act" data-act="appeal">提出申诉</button>
+            <button class="btn act" style="background:var(--mint-deep)" data-act="return">复核：返还格位</button>
+            <button class="btn danger act" data-act="uphold">复核：维持处置</button></div></div>
+      </div>
+      <span class="mail-time">${hh(r.removed_at)}</span><span class="chevron">▶</span>
+    </li>`).join('')}</ul>`:'<div class="empty">临时保留区暂无物品</div>'}</div>`;
+  document.querySelectorAll('#main .inbox li').forEach(li=>{
+    li.onclick=e=>{
+      if(e.target.closest('button')||e.target.closest('img'))return;
+      li.classList.toggle('open');
+      li.querySelector('.photoBox').hidden=!li.classList.contains('open');
+    };
+    li.querySelectorAll('.act').forEach(btn=>btn.onclick=async ev=>{
+      ev.stopPropagation();
+      const id=li.dataset.id,act=btn.dataset.act;
+      try{
+        if(act==='claim'){await api('/api/claim',{uid:state.actor.id,item_id:id});
+          toast('已认领取回，物品闭环','ok');}
+        else if(act==='appeal'){
+          const reason=prompt('请填写申诉理由（如：出差未取、日期未到）') ;
+          if(!reason)return;
+          await api('/api/appeal',{uid:state.actor.id,item_id:id,reason});
+          toast('申诉已提交，等待租户管理员复核','ok');
+        }
+        else if(act==='return'){await api('/api/appeal/review',{uid:state.actor.id,item_id:id,verdict:'return'});
+          toast('复核成立，物品已放回空余格位','ok');}
+        else{await api('/api/appeal/review',{uid:state.actor.id,item_id:id,verdict:'uphold'});
+          toast('已维持处置','ok');}
+        render();
+      }catch(e){toast(e.message,'err');}
+    });
+  });
+}
+
+/* ---------------- 卫生巡检与异常 ---------------- */
+const ISSUE_TABS=[['unlabeled','无标签物品'],['wrong_cell','占错格位'],['leak','液体泄漏'],
+  ['temp','温度超限'],['migration_missing','迁移缺件'],['hygiene','卫生不达标']];
+async function viewHygiene(){
+  const issues=await api('/api/issues?kind='+state.issueFilter);
+  const checks=await api('/api/checks');
+  const fridges=(await api('/api/map')).map(g=>g.fridge);
+  $('#main').innerHTML=`<div class="card"><h2>卫生巡检与异常处理</h2>
+    <div class="hint">保洁可登记巡检发现与拍照，但仅能执行清理；异常关闭需租户管理员或物业确认。</div>
+    <div class="filter-tabs">${ISSUE_TABS.map(([k,n])=>
+      `<button class="${k===state.issueFilter?'on':''}" data-k="${k}">${n}</button>`).join('')}</div>
+    <div id="issueBox"></div></div>
+    <div class="card"><h2>登记巡检</h2>
+      <div class="grid2">
+        <div><label class="fld">类型</label>
+          <select id="rKind"><option value="unlabeled">无标签物品</option><option value="leak">液体泄漏</option></select>
+          <label class="fld">冰箱 / 格位</label>
+          <div class="row"><select id="rF">${fridges.map(f=>`<option value="${f.id}">${esc(f.name)}</option>`).join('')}</select>
+          <input id="rCell" placeholder="如 F1-S4-04" style="width:130px"></div>
+          <label class="fld">情况说明</label><input id="rDetail" style="width:100%" placeholder="描述现场情况">
+          <button class="btn" style="margin-top:12px" id="rptBtn">拍照登记（保洁）</button></div>
+        <div><label class="fld">卫生检查评分（0-100，低于 80 生成异常）</label>
+          <div class="row"><select id="cF">${fridges.map(f=>`<option value="${f.id}">${esc(f.name)}</option>`).join('')}</select>
+          <input id="cScore" type="number" value="88" style="width:80px"></div>
+          <label class="fld">检查发现</label><input id="cFind" style="width:100%" placeholder="如 层架整洁、密封条干净">
+          <button class="btn ghost" style="margin-top:12px" id="cBtn">提交卫生检查</button></div>
+      </div></div>
+    <div class="card"><h2>检查记录</h2>
+      <table><thead><tr><th>时间</th><th>冰箱</th><th>评分</th><th>检查人</th><th>发现</th></tr></thead>
+      <tbody>${checks.map(c=>`<tr><td>${hh(c.ts)}</td><td>${esc(c.fridge_name)}</td>
+        <td><b style="color:${c.score>=80?'var(--mint-deep)':'var(--bad)'}">${c.score}</b></td>
+        <td>${esc(state.users.find(u=>u.id===c.inspector)?.name||c.inspector)}</td>
+        <td class="sub">${esc(c.finding)}</td></tr>`).join('')}</tbody></table></div>`;
+  document.querySelectorAll('.filter-tabs button').forEach(b=>b.onclick=()=>{
+    state.issueFilter=b.dataset.k;render();});
+  const box=$('#issueBox');
+  if(!issues.length)box.innerHTML='<div class="empty">该类异常暂无记录</div>';
+  else box.innerHTML=`<ul class="inbox">${issues.map(it=>`
+    <li data-iid="${it.id}">
+      <div class="ava ${it.status==='open'?'bad':''}">!</div>
+      <div class="mail-main">
+        <div class="mail-top"><span class="mail-subj">${esc({unlabeled:'无标签物品',wrong_cell:'占错格位',leak:'液体泄漏',temp:'温度超限',migration_missing:'迁移缺件',hygiene:'卫生不达标'}[it.kind]||it.kind)}</span>
+          <span class="badge gray">${esc(it.cell||it.fridge_id||'')}</span>
+          ${it.status==='open'?'<span class="badge bad">待处理</span>':'<span class="badge mint">已关闭</span>'}</div>
+        <div class="mail-snip">${esc(it.detail)} · ${hh(it.ts)}</div>
+        <div class="photoBox" hidden>${it.photo_url?`<div class="photo-wrap"><img src="${esc(it.photo_url)}"></div>`:''}
+          ${it.status==='open'?`<div class="row" style="margin-top:10px">
+            <input class="resText" placeholder="处理说明" style="flex:1;min-width:180px">
+            <button class="btn resolveBtn">确认关闭（管理员/物业）</button></div>`:
+            `<p class="sub" style="margin-top:6px">处理结果：${esc(it.resolution||'')} · ${esc(state.users.find(u=>u.id===it.handled_by)?.name||it.handled_by)}</p>`}
+        </div>
+      </div><span class="chevron">▶</span></li>`).join('')}</ul>`;
+  box.querySelectorAll('li').forEach(li=>{
+    li.onclick=e=>{
+      if(e.target.closest('button')||e.target.closest('input')||e.target.closest('img'))return;
+      const pb=li.querySelector('.photoBox');pb.hidden=!pb.hidden;li.classList.toggle('open');
+    };
+    const rb=li.querySelector('.resolveBtn');
+    if(rb)rb.onclick=async()=>{
+      try{await api('/api/issue/resolve',{uid:state.actor.id,issue_id:Number(li.dataset.iid),
+        resolution:li.querySelector('.resText').value||'现场已处理'});
+        toast('异常已关闭','ok');render();}
+      catch(e){toast(e.message,'err');}
+    };
+  });
+  $('#rptBtn').onclick=async()=>{
+    const k=$('#rKind').value;
+    try{
+      if(k==='unlabeled')await api('/api/issue/unlabeled',{uid:state.actor.id,fridge_id:$('#rF').value,cell:$('#rCell').value,detail:$('#rDetail').value});
+      else await api('/api/issue/leak',{uid:state.actor.id,fridge_id:$('#rF').value,cell:$('#rCell').value,detail:$('#rDetail').value});
+      toast('已拍照登记','ok');render();
+    }catch(e){toast(e.message,'err');}
+  };
+  $('#cBtn').onclick=async()=>{
+    try{await api('/api/hygiene',{uid:state.actor.id,fridge_id:$('#cF').value,
+      score:Number($('#cScore').value),finding:$('#cFind').value});
+      toast('检查已提交','ok');render();}
+    catch(e){toast(e.message,'err');}
+  };
+}
+boot();
+</script>
+</body>
+</html>
